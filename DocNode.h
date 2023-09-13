@@ -5,11 +5,6 @@
 #include <vector>
 
 #include "core/fxcrt/fx_coordinates.h"
-
-// #include "rapidjson/document.h"
-// #include "rapidjson/writer.h"
-// #include "rapidjson/stringbuffer.h"
-
 #include "ContentArea.h"
 
 class DocNode {
@@ -23,23 +18,26 @@ private:
   DocNode* parentPtr;
 
   int depth;
-
 public:
   DocNode();
   DocNode(std::wstring title);
   ~DocNode();
 
-  std::wstring GetTitle();
+  std::wstring GetTitle() const;
   void SetTitle(std::wstring title);
-  std::wstring GetText();
+  std::wstring GetText() const;
   void SetText(std::wstring text);
 
-  int GetDepth();
+  int GetDepth() const;
   void SetDepth(int depth);
   void SetParentPtr(DocNode* parentPtr);
-  DocNode* GetParentPtr();
+  DocNode* GetParentPtr() const;
+
+  std::vector<DocNode> GetSubNodes() const { return subNodes; }
 
   void AddImagePath(std::string imagePath);
+
+  std::vector<ContentArea> GetRect() const;
 
   void AddForSubNodes(DocNode subNode);
   DocNode* GetLastSubNodePtr();

@@ -35,15 +35,17 @@ class PDFToDoctree {
   std::vector<DocNode> rootNodes;
 #ifdef USEOCR
   std::vector<OcrResult> det_results_;
-#endif  // USEOCR
+#endif // USEOCR
   
   int currentDepth = 0;
   int currentMajorChapterIndex = -1;
-  int current_page_index_;
+  int current_page_index_ = 0;
+  int total_page_count_ = 0;
 
   void AnalyzeByPage(FPDF_DOCUMENT pdf_doc, int pageIndex);
   void GetTextItemsFromPage(FPDF_PAGE page, int pageIndex);
   std::string SavePage(FPDF_PAGE page);
+  void CaptureChapterImages();
 
   int GetMajorChapterIndex(std::wstring title);
   void RevertDoctree(std::vector<TextItem>& textItems);

@@ -13,8 +13,8 @@ public:
   ContentArea(int pageIndex, CFX_FloatRect rect) : pageIndex(pageIndex), rect(rect) {}
   ~ContentArea() = default;
 
-  int GetPageIndex() { return this->pageIndex; };
-  CFX_FloatRect GetRect() { return this->rect; };
+  int GetPageIndex() const { return this->pageIndex; };
+  CFX_FloatRect GetRect() const { return this->rect; };
 
   void UnionArea(ContentArea area);
 };

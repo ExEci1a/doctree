@@ -10,17 +10,76 @@
 #include "core/fxge/cfx_defaultrenderdevice.h"
 #include "fpdfsdk/cpdfsdk_helpers.h"
 
+#include "opencv2/opencv.hpp"
+
 namespace {
-  bool DirectoryExists(const std::string& path) {
-    struct stat info;
-    if (stat(path.c_str(), &info) != 0) {
-      return false;
-    }
-    return (info.st_mode & S_IFDIR) != 0;
+bool DirectoryExists(const std::string& path) {
+  struct stat info;
+  if (stat(path.c_str(), &info) != 0) {
+    return false;
   }
+  return (info.st_mode & S_IFDIR) != 0;
 }
 
-PDFToDoctree::PDFToDoctree(std::string filePath, std::string outPath, std::string password, int options) {
+std::string WstringToUTF8(const std::wstring& wstr) {
+  std::string out;
+  for (wchar_t wc : wstr) {
+    if (wc < 0x80) {
+      out.push_back(static_cast<char>(wc));
+    } else if (wc < 0x800) {
+      out.push_back(0xC0 | ((wc >> 6) & 0x1F));
+      out.push_back(0x80 | (wc & 0x3F));
+    } else if (wc < 0x10000) {
+      out.push_back(0xE0 | ((wc >> 12) & 0x0F));
+      out.push_back(0x80 | ((wc >> 6) & 0x3F));
+      out.push_back(0x80 | (wc & 0x3F));
+    }
+    // 对于大于 0x10000 的字符，此处省略了处理，因为它们超出了 BMP 范围。
+    // 如果需要支持整个 Unicode 范围，你可以添加相应的逻辑。
+  }
+  return out;
+}
+
+void CaptureChapter(std::vector<DocNode> rootNodes, std::string out_path) {
+  if (!rootNodes.empty()) {
+    for (auto& item : rootNodes) {
+      auto sub_nodes = item.GetSubNodes();
+      if (!sub_nodes.empty()) {
+        CaptureChapter(sub_nodes, out_path);
+      }
+      if (item.GetDepth() == 2) {
+        auto rects = item.GetRect();
+        auto title = WstringToUTF8(item.GetTitle());
+        int count = 0;
+
+        for (const auto& rect : rects) {
+          auto page_index = rect.GetPageIndex();
+          ByteString filename =
+              filename.Format("%sPage%d.png", out_path.c_str(), page_index + 1);
+
+          auto src_image = cv::imread(filename.c_str());
+          auto real_rect = rect.GetRect();
+          if (!src_image.empty()) {
+            auto chapter_image =
+                src_image(cv::Rect(0, src_image.rows - (real_rect.top * 2),
+                                   src_image.cols, real_rect.Height() * 2));
+            auto suffix = count > 0 ? "_" + std::to_string(count) : "";
+            auto item_image_path = out_path + title + suffix + ".png";
+            cv::imwrite(item_image_path, chapter_image);
+            item.AddImagePath(item_image_path);
+            count++;
+          }
+        }
+      }
+    }
+  }
+}
+}  // namespace
+
+PDFToDoctree::PDFToDoctree(std::string filePath,
+                           std::string outPath,
+                           std::string password,
+                           int options) {
   this->filePath = filePath;
   this->outPath = outPath;
   if (outPath.back() != '\\') {
@@ -109,8 +168,6 @@ void PDFToDoctree::GetTextItemsFromPage(FPDF_PAGE page, int pageIndex) {
   }
 }
 
-
-
 std::string PDFToDoctree::SavePage(FPDF_PAGE page) {
   if (!DirectoryExists(image_out_path_)) {
 #if _WIN32
@@ -141,13 +198,17 @@ std::string PDFToDoctree::SavePage(FPDF_PAGE page) {
   return filename.c_str();
 }
 
-int PDFToDoctree::GetMajorChapterIndex(std::wstring title) {
+void PDFToDoctree::CaptureChapterImages() {
+  CaptureChapter(rootNodes, this->image_out_path_);
+}
 
+int PDFToDoctree::GetMajorChapterIndex(std::wstring title) {
   // 查找第一个点的位置
   auto dotPos = title.find(L'.');
 
   // 如果找到点，截取子字符串；否则，使用整个字符串
-  std::wstring firstPart = (dotPos != std::wstring::npos) ? title.substr(0, dotPos) : title;
+  std::wstring firstPart =
+      (dotPos != std::wstring::npos) ? title.substr(0, dotPos) : title;
 
   // 将子字符串转换为 int
   int majorChapter = std::stoi(firstPart);
@@ -188,28 +249,30 @@ void PDFToDoctree::RevertDoctree(std::vector<TextItem>& textItems) {
           // 新建的章节为当前章节的子章节
           newNode.SetParentPtr(this->currentNode);
           this->currentNode->AddForSubNodes(newNode);
-          
+
           this->currentNode = this->currentNode->GetLastSubNodePtr();
         } else if (depth == this->currentDepth) {
           // 新建的章节与当前章节同级
           newNode.SetParentPtr(this->currentNode->GetParentPtr());
           this->currentNode = this->currentNode->GetParentPtr();
           this->currentNode->AddForSubNodes(newNode);
-          
+
           this->currentNode = this->currentNode->GetLastSubNodePtr();
         } else if (depth == 0) {
           // 新建的章节为新的根章节
-          if (GetMajorChapterIndex(match[0]) == (this->currentMajorChapterIndex + 1)) {
+          if (GetMajorChapterIndex(match[0]) ==
+              (this->currentMajorChapterIndex + 1)) {
             this->currentMajorChapterIndex++;
 
             newNode.SetParentPtr(nullptr);
             this->rootNodes.push_back(newNode);
-            
+
             this->currentNode = &this->rootNodes.back();
             this->rootNode = this->currentNode;
           } else {
             this->currentNode->AppendText(item.GetContent());
-            this->currentNode->AddForContentAreas(ContentArea(item.GetPageIndex(), item.GetBounds()));
+            this->currentNode->AddForContentAreas(
+                ContentArea(item.GetPageIndex(), item.GetBounds()));
           }
         } else {
           // 新建的章节为当前章节的兄弟章节，即为当前章节的父章节的子章节
@@ -220,17 +283,19 @@ void PDFToDoctree::RevertDoctree(std::vector<TextItem>& textItems) {
           newNode.SetParentPtr(this->currentNode->GetParentPtr());
           this->currentNode = this->currentNode->GetParentPtr();
           this->currentNode->AddForSubNodes(newNode);
-          
+
           this->currentNode = this->currentNode->GetLastSubNodePtr();
         }
 
         this->currentNode->AppendText(match.suffix());
-        this->currentNode->AddForContentAreas(ContentArea(item.GetPageIndex(), item.GetBounds()));
+        this->currentNode->AddForContentAreas(
+            ContentArea(item.GetPageIndex(), item.GetBounds()));
         this->currentDepth = depth;
       }
     } else {
       this->currentNode->AppendText(item.GetContent());
-      this->currentNode->AddForContentAreas(ContentArea(item.GetPageIndex(), item.GetBounds()));
+      this->currentNode->AddForContentAreas(
+          ContentArea(item.GetPageIndex(), item.GetBounds()));
     }
   }
 }
@@ -275,7 +340,10 @@ DocNode PDFToDoctree::Analyze() {
   for (auto i{0}; i < page_count; i++) {
     current_page_index_ = i + 1;
     AnalyzeByPage(pdf_doc, i);
+    total_page_count_++;
   }
+
+  CaptureChapterImages();
 
   FPDF_CloseDocument(pdf_doc);
   FPDF_DestroyLibrary();
@@ -284,10 +352,12 @@ DocNode PDFToDoctree::Analyze() {
 }
 
 void PDFToDoctree::OutputDoctreeJson() {
-  std::string fileName = this->filePath.substr(this->filePath.find_last_of('\\') + 1);
+  std::string fileName =
+      this->filePath.substr(this->filePath.find_last_of('\\') + 1);
 
-  std::string outPutFileName = this->outPath + fileName.substr(0, fileName.find_last_of('.')) + ".json";
-  
+  std::string outPutFileName =
+      this->outPath + fileName.substr(0, fileName.find_last_of('.')) + ".json";
+
   std::ofstream out(outPutFileName);
   if (!out.is_open()) {
     std::cerr << "Failed to open the output file." << std::endl;
