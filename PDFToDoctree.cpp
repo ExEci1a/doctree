@@ -1,8 +1,34 @@
 #include "PDFToDoctree.h"
 
+#include <sys/stat.h>
+#include <cstdlib>
+#ifdef _WIN32
+#include <direct.h>
+#endif // _WIN32
+
+#include "../PSOImginfo.h"
+#include "fpdfsdk/cpdfsdk_helpers.h"
+#include "core/fxge/cfx_defaultrenderdevice.h"
+
+namespace {
+  bool DirectoryExists(const std::string& path) 
+  {
+    struct stat info;
+    if (stat(path.c_str(), &info) != 0) {
+        return false;
+    }
+    return (info.st_mode & S_IFDIR) != 0;
+  }
+}
+
 PDFToDoctree::PDFToDoctree(std::string filePath, std::string outPath, std::string password, int options) {
   this->filePath = filePath;
   this->outPath = outPath;
+  if (outPath.back() != '\\')
+  {
+    this->outPath += '\\';
+  }
+  image_out_path_ = this->outPath + "imgs\\";
   this->password = password;
   this->options = options;
 }
@@ -83,6 +109,34 @@ void PDFToDoctree::GetTextItemsFromPage(FPDF_PAGE page, int pageIndex) {
     delete[] buffer;
     delete[] wbuffer;
   }
+}
+
+std::string PDFToDoctree::SavePage(FPDF_PAGE page)
+{
+  if (!DirectoryExists(image_out_path_))
+  {
+#if _WIN32
+    _mkdir(image_out_path_.c_str());
+#else 
+    mkdir(image_out_path_.c_str());
+#endif // _WIN32
+  }
+
+  auto m_page_bitmap = pdfium::MakeRetain<CFX_DIBitmap>();
+  auto c_page = CPDFPageFromFPDFPage(page);
+  auto ocr_width = static_cast<int>(c_page->GetPageWidth()) * 2;
+  auto ocr_height = static_cast<int>(c_page->GetPageHeight()) * 2;
+  m_page_bitmap->Create(ocr_width, ocr_height, FXDIB_Rgb32);
+
+  auto m_pRenderDevice = std::make_unique<CFX_DefaultRenderDevice>();
+  auto *pDevice = m_pRenderDevice.get();
+  pDevice->Attach(m_page_bitmap, !!(0x01 & FPDF_REVERSE_BYTE_ORDER), nullptr, false);
+
+	FPDFBitmap_FillRect(FPDFBitmapFromCFXDIBitmap(m_page_bitmap.Get()), 0, 0, ocr_width, ocr_height, 0xFFFFFFFF);
+	FPDF_RenderPageBitmap(FPDFBitmapFromCFXDIBitmap(m_page_bitmap.Get()), page, 0, 0, ocr_width, ocr_height, 0, 0);
+	ByteString filename = filename.Format("%sPage%d.png", this->image_out_path_.c_str(), current_page_index_);
+	PSOimginfo::SavePng(m_page_bitmap.Get(), filename.c_str());
+  return filename.c_str();
 }
 
 int PDFToDoctree::GetMajorChapterIndex(std::wstring title) {
@@ -184,6 +238,13 @@ void PDFToDoctree::AnalyzeByPage(FPDF_DOCUMENT pdf_doc, int pageIndex) {
     std::cerr << "Failed to load the page." << std::endl;
     FPDF_CloseDocument(pdf_doc);
   }
+  auto image_path = SavePage(page);
+#if USEOCR
+  	IdentiImg(image_path.c_str());
+    det_results_ = GetDetResult();
+    ClearOcrResult();
+#endif // USE_OCR
+
   // 从页面中提取行文本
   GetTextItemsFromPage(page, pageIndex);
   RevertDoctree(textItems);
@@ -205,7 +266,9 @@ DocNode PDFToDoctree::Analyze() {
     std::cerr << "Failed to load the document." << std::endl;
   }
 
-  for (int i = 0; i < FPDF_GetPageCount(pdf_doc); i++) {
+  auto page_count = FPDF_GetPageCount(pdf_doc);
+  for (auto i { 0 }; i < page_count; i++) {
+    current_page_index_ = i + 1;
     AnalyzeByPage(pdf_doc, i);
   }
 

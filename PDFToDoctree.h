@@ -15,6 +15,7 @@
 #include "public/fpdf_text.h"
 #include "core/fxcrt/fx_coordinates.h"
 
+#include "../OCR/psoOCR.h"
 #include "DocNode.h"
 #include "TextItem.h"
 
@@ -24,6 +25,7 @@ class PDFToDoctree {
   std::string password = "";
 
   std::string outPath;
+  std::string image_out_path_;
 
   int options = -1;
 
@@ -31,12 +33,17 @@ class PDFToDoctree {
   DocNode* currentNode = nullptr;
   DocNode* rootNode = nullptr;
   std::vector<DocNode> rootNodes;
+#ifdef USEOCR
+  std::vector<OcrResult> det_results_;
+#endif // USEOCR
   
   int currentDepth = 0;
   int currentMajorChapterIndex = -1;
+  int current_page_index_;
 
   void AnalyzeByPage(FPDF_DOCUMENT pdf_doc, int pageIndex);
   void GetTextItemsFromPage(FPDF_PAGE page, int pageIndex);
+  std::string SavePage(FPDF_PAGE page);
 
   int GetMajorChapterIndex(std::wstring title);
   void RevertDoctree(std::vector<TextItem>& textItems);
@@ -44,6 +51,8 @@ class PDFToDoctree {
                              float bottom1,
                              float top2,
                              float bottom2);
+
+
 
  public:
   // input path, output path, password, options, error code;
