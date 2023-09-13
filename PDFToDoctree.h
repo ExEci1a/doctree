@@ -34,7 +34,7 @@ class PDFToDoctree {
   DocNode* rootNode = nullptr;
   std::vector<DocNode> rootNodes;
 #ifdef USEOCR
-  std::vector<OcrResult> det_results_;
+  std::vector<OcrResult> layout_analysis_results_;
 #endif // USEOCR
   
   int currentDepth = 0;
@@ -62,6 +62,7 @@ class PDFToDoctree {
   DocNode Analyze();
 
   void OutputDoctreeJson();
+  std::vector<OcrResult> GetLayoutAnalysisResults() const { return layout_analysis_results_; }
 };
 
 #endif  // PDF_TO_DOCTREE

@@ -144,6 +144,28 @@ void PDFToDoctree::GetTextItemsFromPage(FPDF_PAGE page, int pageIndex) {
   std::sort(boundsVector.begin(), boundsVector.end(),
             [](CFX_FloatRect a, CFX_FloatRect b) { return a.top > b.top; });
 
+  auto c_page = CPDFPageFromFPDFPage(page);
+  auto page_height = static_cast<int>(c_page->GetPageHeight());
+  auto layout_results = GetLayoutAnalysisResults();
+  auto need_delete_item = [&layout_results, &page_height,
+                           this](CFX_FloatRect item) -> bool {
+    for (auto& it : layout_results) {
+      if (it.content != L"Text" && it.content != L"Title" && it.content != L"Reference" &&
+          YProjectionsIntersect(page_height - (it.zone.top / 2), page_height - (it.zone.bottom / 2), item.Top(), item.Bottom())) {
+        return true;
+      }
+    }
+    
+    return false;
+  };
+  for (auto it = boundsVector.begin(); it != boundsVector.end();) {
+    if (need_delete_item(*it)) {
+      it = boundsVector.erase(it);
+    } else {
+      ++it;
+    }
+  }
+
   for (CFX_FloatRect rect : boundsVector) {
     temp++;
 
@@ -312,7 +334,7 @@ void PDFToDoctree::AnalyzeByPage(FPDF_DOCUMENT pdf_doc, int pageIndex) {
   auto image_path = SavePage(page);
 #if USEOCR
   IdentiImg(image_path.c_str());
-  det_results_ = GetDetResult();
+  layout_analysis_results_ = GetDetResult();
   ClearOcrResult();
 
 
