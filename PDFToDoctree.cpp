@@ -10,7 +10,9 @@
 #include "core/fxge/cfx_defaultrenderdevice.h"
 #include "fpdfsdk/cpdfsdk_helpers.h"
 
+#ifdef USEOCR
 #include "opencv2/opencv.hpp"
+#endif // USEOCR
 
 namespace {
 bool DirectoryExists(const std::string& path) {
@@ -40,6 +42,7 @@ std::string WstringToUTF8(const std::wstring& wstr) {
   return out;
 }
 
+#ifdef USEOCR
 void CaptureChapter(std::vector<DocNode> rootNodes, std::string out_path) {
   if (!rootNodes.empty()) {
     for (auto& item : rootNodes) {
@@ -74,12 +77,13 @@ void CaptureChapter(std::vector<DocNode> rootNodes, std::string out_path) {
     }
   }
 }
+#endif // USEOCR
 }
 
 PDFToDoctree::PDFToDoctree(std::string filePath,
                            std::string outPath,
                            std::string password,
-                           int options) {
+                           PSO2DoctreeOpt options) {
   this->filePath = filePath;
   this->outPath = outPath;
   if (outPath.back() != '\\') {
@@ -90,16 +94,7 @@ PDFToDoctree::PDFToDoctree(std::string filePath,
   this->options = options;
 }
 
-PDFToDoctree::~PDFToDoctree() {
-  /*if (this->currentNode) {
-    delete this->currentNode;
-    this->currentNode = nullptr;
-  }
-  if (this->rootNode) {
-    delete this->rootNode;
-    this->rootNode = nullptr;
-  }*/
-}
+PDFToDoctree::~PDFToDoctree() {}
 
 bool PDFToDoctree::YProjectionsIntersect(float top1,
                                          float bottom1,
@@ -144,6 +139,7 @@ void PDFToDoctree::GetTextItemsFromPage(FPDF_PAGE page, int pageIndex) {
   std::sort(boundsVector.begin(), boundsVector.end(),
             [](CFX_FloatRect a, CFX_FloatRect b) { return a.top > b.top; });
 
+#ifdef USEOCR
   auto c_page = CPDFPageFromFPDFPage(page);
   auto page_height = static_cast<int>(c_page->GetPageHeight());
   auto layout_results = GetLayoutAnalysisResults();
@@ -165,6 +161,7 @@ void PDFToDoctree::GetTextItemsFromPage(FPDF_PAGE page, int pageIndex) {
       ++it;
     }
   }
+#endif // USEOCR
 
   for (CFX_FloatRect rect : boundsVector) {
     temp++;
@@ -220,9 +217,11 @@ std::string PDFToDoctree::SavePage(FPDF_PAGE page) {
   return filename.c_str();
 }
 
+#ifdef USEOCR
 void PDFToDoctree::CaptureChapterImages() {
   CaptureChapter(rootNodes, this->image_out_path_);
 }
+#endif // USEOCR
 
 int PDFToDoctree::GetMajorChapterIndex(std::wstring title) {
 
@@ -239,6 +238,63 @@ int PDFToDoctree::GetMajorChapterIndex(std::wstring title) {
   return majorChapter;
 }
 
+void PDFToDoctree::NewRootNode(std::wsmatch match, TextItem item) {
+  // 新建根节点
+  this->rootNodes.push_back(DocNode());
+
+  this->currentNode = &this->rootNodes.back();
+
+  this->currentNode->SetTitle(match[0]);
+  this->currentNode->SetText(match.suffix());
+  this->currentNode->SetDepth(0);
+
+  this->currentDepth = 0;
+  this->currentNode->AddForContentAreas(
+      ContentArea(item.GetPageIndex(), item.GetBounds()));
+  this->rootNode = this->currentNode;
+}
+
+void PDFToDoctree::SetSubNodeForCurrentNode(DocNode newNode) {
+  // 新建的章节为当前章节的子章节
+  newNode.SetParentPtr(this->currentNode);
+  this->currentNode->AddForSubNodes(newNode);
+
+  this->currentNode = this->currentNode->GetLastSubNodePtr();
+}
+
+void PDFToDoctree::SetBrotherNodeForCurrentNode(DocNode newNode) {
+  // 新建的章节与当前章节同级
+  newNode.SetParentPtr(this->currentNode->GetParentPtr());
+  this->currentNode = this->currentNode->GetParentPtr();
+  this->currentNode->AddForSubNodes(newNode);
+
+  this->currentNode = this->currentNode->GetLastSubNodePtr();
+}
+
+void PDFToDoctree::SetNextRootNode(DocNode newNode) {
+  // 新建的章节为新的根章节
+  this->currentMajorChapterIndex++;
+
+  newNode.SetParentPtr(nullptr);
+  this->rootNodes.push_back(newNode);
+
+  this->currentNode = &this->rootNodes.back();
+  this->rootNode = this->currentNode;
+}
+
+void PDFToDoctree::SetHighLevelNode(DocNode newNode) {
+  // 新建的章节为当前章节的兄弟章节，即为当前章节的父章节的子章节
+  while (newNode.GetDepth() < this->currentDepth) {
+    this->currentNode = this->currentNode->GetParentPtr();
+    this->currentDepth--;
+  }
+  newNode.SetParentPtr(this->currentNode->GetParentPtr());
+  this->currentNode = this->currentNode->GetParentPtr();
+  this->currentNode->AddForSubNodes(newNode);
+
+  this->currentNode = this->currentNode->GetLastSubNodePtr();
+}
+
 void PDFToDoctree::RevertDoctree(std::vector<TextItem>& textItems) {
   std::wregex pattern(L"^(\\d{1,2})(\\.\\d{1,2})*(?=([\\s]))");
   for (TextItem item : textItems) {
@@ -246,21 +302,9 @@ void PDFToDoctree::RevertDoctree(std::vector<TextItem>& textItems) {
     std::wstring content = item.GetContent();
     if (std::regex_search(content, match, pattern)) {
       if (this->rootNode == nullptr) {
-        this->rootNodes.push_back(DocNode());
-
-        this->currentNode = &this->rootNodes.back();
-
         int majorChapter = GetMajorChapterIndex(match[0]);
+        NewRootNode(match, item);
         this->currentMajorChapterIndex = majorChapter;
-
-        this->currentNode->SetTitle(match[0]);
-        this->currentNode->SetText(match.suffix());
-        this->currentNode->SetDepth(0);
-
-        this->currentDepth = 0;
-        this->currentNode->AddForContentAreas(
-            ContentArea(item.GetPageIndex(), item.GetBounds()));
-        this->rootNode = this->currentNode;
       } else {
         std::wstring title = match[0];
         DocNode newNode = DocNode(match[0]);
@@ -270,44 +314,22 @@ void PDFToDoctree::RevertDoctree(std::vector<TextItem>& textItems) {
 
         if (depth > this->currentDepth) {
           // 新建的章节为当前章节的子章节
-          newNode.SetParentPtr(this->currentNode);
-          this->currentNode->AddForSubNodes(newNode);
-
-          this->currentNode = this->currentNode->GetLastSubNodePtr();
+          SetSubNodeForCurrentNode(newNode);
         } else if (depth == this->currentDepth) {
           // 新建的章节与当前章节同级
-          newNode.SetParentPtr(this->currentNode->GetParentPtr());
-          this->currentNode = this->currentNode->GetParentPtr();
-          this->currentNode->AddForSubNodes(newNode);
-
-          this->currentNode = this->currentNode->GetLastSubNodePtr();
+          SetBrotherNodeForCurrentNode(newNode);
         } else if (depth == 0) {
           // 新建的章节为新的根章节
           if (GetMajorChapterIndex(match[0]) ==
               (this->currentMajorChapterIndex + 1)) {
-            this->currentMajorChapterIndex++;
-
-            newNode.SetParentPtr(nullptr);
-            this->rootNodes.push_back(newNode);
-
-            this->currentNode = &this->rootNodes.back();
-            this->rootNode = this->currentNode;
+            SetNextRootNode(newNode);
           } else {
             this->currentNode->AppendText(item.GetContent());
             this->currentNode->AddForContentAreas(
                 ContentArea(item.GetPageIndex(), item.GetBounds()));
           }
         } else {
-          // 新建的章节为当前章节的兄弟章节，即为当前章节的父章节的子章节
-          while (depth < this->currentDepth) {
-            this->currentNode = this->currentNode->GetParentPtr();
-            this->currentDepth--;
-          }
-          newNode.SetParentPtr(this->currentNode->GetParentPtr());
-          this->currentNode = this->currentNode->GetParentPtr();
-          this->currentNode->AddForSubNodes(newNode);
-
-          this->currentNode = this->currentNode->GetLastSubNodePtr();
+          SetHighLevelNode(newNode);
         }
 
         this->currentNode->AppendText(match.suffix());
@@ -316,6 +338,9 @@ void PDFToDoctree::RevertDoctree(std::vector<TextItem>& textItems) {
         this->currentDepth = depth;
       }
     } else {
+      if (this->currentNode == nullptr)
+        continue;
+      
       this->currentNode->AppendText(item.GetContent());
       this->currentNode->AddForContentAreas(
           ContentArea(item.GetPageIndex(), item.GetBounds()));
@@ -338,7 +363,7 @@ void PDFToDoctree::AnalyzeByPage(FPDF_DOCUMENT pdf_doc, int pageIndex) {
   ClearOcrResult();
 
 
-#endif  // USE_OCR
+#endif // USE_OCR
 
   // 从页面中提取行文本
   GetTextItemsFromPage(page, pageIndex);
@@ -368,7 +393,9 @@ DocNode PDFToDoctree::Analyze() {
     total_page_count_++;
   }
 
+#if USEOCR
   CaptureChapterImages();
+#endif // USEOCR
 
   FPDF_CloseDocument(pdf_doc);
   FPDF_DestroyLibrary();

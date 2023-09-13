@@ -113,7 +113,16 @@ std::string DocNode::OutputTree() {
   document.AddMember("chapter", titleValue, allocator);
   document.AddMember("text", textValue, allocator);
 
-  document.AddMember("depth", this->depth, allocator);
+  if (!this->imagePaths.empty()) {
+    rapidjson::Value imagePaths(rapidjson::kArrayType);
+    for (int i = 0; i < this->imagePaths.size(); i++) {
+      rapidjson::Value imagePath(rapidjson::kStringType);
+      imagePath.SetString(this->imagePaths[i].c_str(), this->imagePaths[i].size());
+      imagePaths.PushBack(imagePath, allocator);
+    }
+
+    document.AddMember("image_path", imagePaths, allocator);
+  }
 
   if (!this->subNodes.empty()) {
     rapidjson::Value subChapter(rapidjson::kArrayType);
@@ -122,8 +131,6 @@ std::string DocNode::OutputTree() {
       rapidjson::Document tempDoc;
       tempDoc.Parse(this->subNodes[i].OutputTree().c_str());
       subChapterObject.CopyFrom(tempDoc, allocator);
-
-      // subChapterObject.Parse(this->subNodes[i].OutputTree().c_str());
       subChapter.PushBack(subChapterObject, allocator);
     }
 
@@ -135,8 +142,6 @@ std::string DocNode::OutputTree() {
   document.Accept(writer);
 
   std::string output = buffer.GetString();
-
-  //std::string output = "";
 
   return output;
 }
