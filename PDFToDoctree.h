@@ -54,8 +54,6 @@ class PDFToDoctree {
                              float top2,
                              float bottom2);
 
-
-
  public:
   // input path, output path, password, options, error code;
   PDFToDoctree() = default;

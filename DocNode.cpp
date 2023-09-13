@@ -68,8 +68,7 @@ void DocNode::AddImagePath(std::string imagePath) {
   this->imagePaths.push_back(imagePath);
 }
 
-std::vector<ContentArea> DocNode::GetRect() const
-{
+std::vector<ContentArea> DocNode::GetRect() const {
   return contentAreas;
 }
 
@@ -97,61 +96,47 @@ void DocNode::AppendText(std::wstring text) {
 }
 
 std::string DocNode::OutputTree() {
-  // TODO: Exception handling for empty title and text
-
   std::string tempTitle = WstringToUTF8(this->title);
   std::string tempText = WstringToUTF8(this->text);
 
-  std::string output = "{";
-  // Output title and text
+  rapidjson::Value titleValue(rapidjson::kStringType);
+  titleValue.SetString(tempTitle.c_str(), tempTitle.size());
 
-    tempTitle.erase(std::remove(tempTitle.begin(), tempTitle.end(), '\n'), tempTitle.end());
-      tempText.erase(std::remove(tempText.begin(), tempText.end(), '\n'), tempText.end());
+  rapidjson::Value textValue(rapidjson::kStringType);
+  textValue.SetString(tempText.c_str(), tempText.size());
 
+  rapidjson::Document document;
+  document.SetObject();
+  rapidjson::Document::AllocatorType& allocator = document.GetAllocator();
+  rapidjson::Value object1(rapidjson::kObjectType);
 
+  document.AddMember("chapter", titleValue, allocator);
+  document.AddMember("text", textValue, allocator);
 
-  output += "\"chapter\": \"" + tempTitle + "\",";
-  output += "\"text\": \"" + tempText + "\"";
+  document.AddMember("depth", this->depth, allocator);
 
-   if (!this->contentAreas.empty()) {
-    output += ",\"contentArea\": [";
-    for (int i = 0; i < this->contentAreas.size(); i++) {
-      output += "{\"pageIndex\": " + std::to_string(this->contentAreas[i].GetPageIndex()) + ",";
-      output += "\"rect\":";
-      output += "[" + std::to_string(this->contentAreas[i].GetRect().left) + ",";
-      output += std::to_string(this->contentAreas[i].GetRect().bottom) + ",";
-      output += std::to_string(this->contentAreas[i].GetRect().right) + ",";
-      output += std::to_string(this->contentAreas[i].GetRect().top) + "]}";
-      if (i < this->contentAreas.size() - 1) {
-        output += ",";
-      }
-    }
-    output += "]";
-  }
-  //+ "\",";
-
-  //// Output image paths
-  // output += "\"imagePath\": [";
-  // for (int i = 0; i < this->imagePaths.size(); i++) {
-  //     output += "\"" + this->imagePaths[i] + "\"";
-  //     if (i < this->imagePaths.size() - 1) {
-  //         output += ",";
-  //     }
-  // }
-  // output += "],";
-
-  // Output sub nodes
   if (!this->subNodes.empty()) {
-    output += ",\"sub_chapter\": [";
+    rapidjson::Value subChapter(rapidjson::kArrayType);
     for (int i = 0; i < this->subNodes.size(); i++) {
-      output += this->subNodes[i].OutputTree();
-      if (i < this->subNodes.size() - 1) {
-        output += ",";
-      }
-    }
-    output += "]";
-  }
+      rapidjson::Value subChapterObject(rapidjson::kObjectType);
+      rapidjson::Document tempDoc;
+      tempDoc.Parse(this->subNodes[i].OutputTree().c_str());
+      subChapterObject.CopyFrom(tempDoc, allocator);
 
-  output += "}";
+      // subChapterObject.Parse(this->subNodes[i].OutputTree().c_str());
+      subChapter.PushBack(subChapterObject, allocator);
+    }
+
+    document.AddMember("sub_chapter", subChapter, allocator);
+  }
+  
+  rapidjson::StringBuffer buffer;
+  rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
+  document.Accept(writer);
+
+  std::string output = buffer.GetString();
+
+  //std::string output = "";
+
   return output;
 }

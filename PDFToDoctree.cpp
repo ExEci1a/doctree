@@ -74,7 +74,7 @@ void CaptureChapter(std::vector<DocNode> rootNodes, std::string out_path) {
     }
   }
 }
-}  // namespace
+}
 
 PDFToDoctree::PDFToDoctree(std::string filePath,
                            std::string outPath,
@@ -200,14 +200,10 @@ std::string PDFToDoctree::SavePage(FPDF_PAGE page) {
 
 void PDFToDoctree::CaptureChapterImages() {
   CaptureChapter(rootNodes, this->image_out_path_);
-  for (size_t i = 0; i < total_page_count_; i++) {
-    ByteString filename =
-        filename.Format("%sPage%d.png", image_out_path_.c_str(), i + 1);
-    std::remove(filename.c_str());
-  }
 }
 
 int PDFToDoctree::GetMajorChapterIndex(std::wstring title) {
+
   // 查找第一个点的位置
   auto dotPos = title.find(L'.');
 
@@ -318,6 +314,8 @@ void PDFToDoctree::AnalyzeByPage(FPDF_DOCUMENT pdf_doc, int pageIndex) {
   IdentiImg(image_path.c_str());
   det_results_ = GetDetResult();
   ClearOcrResult();
+
+
 #endif  // USE_OCR
 
   // 从页面中提取行文本
@@ -362,7 +360,7 @@ void PDFToDoctree::OutputDoctreeJson() {
 
   std::string outPutFileName =
       this->outPath + fileName.substr(0, fileName.find_last_of('.')) + ".json";
-
+  
   std::ofstream out(outPutFileName);
   if (!out.is_open()) {
     std::cerr << "Failed to open the output file." << std::endl;
