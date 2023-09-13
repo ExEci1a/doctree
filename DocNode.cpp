@@ -77,12 +77,10 @@ DocNode* DocNode::GetLastSubNodePtr() {
 }
 
 void DocNode::AddForContentAreas(ContentArea contentArea) {
-  for (ContentArea area : this->contentAreas) {
+  for (ContentArea& area : this->contentAreas) {
     if (area.GetPageIndex() == contentArea.GetPageIndex()) {
-      if (!((area.GetRect().bottom > contentArea.GetRect().top) || (area.GetRect().top < contentArea.GetRect().bottom))) {
-        area.GetRect().Union(contentArea.GetRect());
-        return;
-      }
+      area.UnionArea(contentArea);
+      return;
     }
   }
 
@@ -101,8 +99,40 @@ std::string DocNode::OutputTree() {
 
   std::string output = "{";
   // Output title and text
+
+  tempTitle.erase(std::remove(tempTitle.begin(), tempTitle.end(), '\n'), tempTitle.end());
+  tempText.erase(std::remove(tempText.begin(), tempText.end(), '\n'), tempText.end());
+  // size_t pos = 0;
+  // while ((pos = tempTitle.find('\n', pos)) != std::string::npos) {
+  //     tempTitle.replace(pos, 1, "\\n");
+  //     pos += 2;  // Move past the newly inserted characters
+  // }
+
+  // size_t pos2 = 0;
+  // while ((pos2 = tempText.find('\n', pos2)) != std::string::npos) {
+  //     tempText.replace(pos2, 1, "\\n");
+  //     pos2 += 2;  // Move past the newly inserted characters
+  // }
+
   output += "\"chapter\": \"" + tempTitle + "\",";
-  output += "\"text\": \"" + tempText;
+  output += "\"text\": \"" + tempText + "\"";
+
+  if (!this->contentAreas.empty()) {
+    output += ",\"contentArea\": [";
+    for (int i = 0; i < this->contentAreas.size(); i++) {
+      output += "{\"pageIndex\": " + std::to_string(this->contentAreas[i].GetPageIndex()) + ",";
+      output += "\"rect\":";
+      output += "[" + std::to_string(this->contentAreas[i].GetRect().left) + ",";
+      output += std::to_string(this->contentAreas[i].GetRect().bottom) + ",";
+      output += std::to_string(this->contentAreas[i].GetRect().right) + ",";
+      output += std::to_string(this->contentAreas[i].GetRect().top) + "]}";
+      if (i < this->contentAreas.size() - 1) {
+        output += ",";
+      }
+    }
+    output += "]";
+  }
+
   //+ "\",";
 
   //// Output image paths
@@ -117,7 +147,7 @@ std::string DocNode::OutputTree() {
 
   // Output sub nodes
   if (!this->subNodes.empty()) {
-    output += "\"sub_chapter\": [";
+    output += ",\"sub_chapter\": [";
     for (int i = 0; i < this->subNodes.size(); i++) {
       output += this->subNodes[i].OutputTree();
       if (i < this->subNodes.size() - 1) {
@@ -128,5 +158,35 @@ std::string DocNode::OutputTree() {
   }
 
   output += "}";
+
+  // rapidjson::Document document;
+	// document.SetObject();
+	// rapidjson::Document::AllocatorType& allocator = document.GetAllocator();
+	// rapidjson::Value object1(rapidjson::kObjectType);
+
+  // document.AddMember("chapter", tempTitle, allocator);
+  // document.AddMember("text", tempText, allocator);
+
+  // if (!this->subNodes.empty()) {
+  //   rapidjson::Value subChapter(rapidjson::kArrayType);
+  //   for (int i = 0; i < this->subNodes.size(); i++) {
+  //     rapidjson::Value subChapterObject(rapidjson::kObjectType);
+  //     rapidjson::Document tempDoc;
+  //     tempDoc.Parse(this->subNodes[i].OutputTree().c_str());
+  //     subChapterObject.CopyFrom(tempDoc, allocator);
+
+  //     // subChapterObject.Parse(this->subNodes[i].OutputTree().c_str());
+  //     subChapter.PushBack(subChapterObject, allocator);
+  //   }
+
+  //   document.AddMember("sub_chapter", subChapter, allocator);
+  // }
+  
+  // rapidjson::StringBuffer buffer;
+  // rapidjson::Writer<rapidjson::StringBuffer> writer(buffer);
+  // document.Accept(writer);
+
+  // std::string output = buffer.GetString();
+
   return output;
 }

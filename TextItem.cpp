@@ -1,6 +1,7 @@
 #include "TextItem.h"
 
 TextItem::TextItem(int pageIndex, CFX_FloatRect bounds, std::wstring content) {
+  this->pageIndex = pageIndex;
   this->bounds = bounds;
   this->content = content;
 }

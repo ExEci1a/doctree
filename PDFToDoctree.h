@@ -35,7 +35,7 @@ class PDFToDoctree {
   std::vector<DocNode> rootNodes;
 #ifdef USEOCR
   std::vector<OcrResult> det_results_;
-#endif // USEOCR
+#endif  // USEOCR
   
   int currentDepth = 0;
   int currentMajorChapterIndex = -1;

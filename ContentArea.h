@@ -15,6 +15,8 @@ public:
 
   int GetPageIndex() { return this->pageIndex; };
   CFX_FloatRect GetRect() { return this->rect; };
+
+  void UnionArea(ContentArea area);
 };
 
 #endif // CONTENTAREA

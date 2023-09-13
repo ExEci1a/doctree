@@ -5,6 +5,11 @@
 #include <vector>
 
 #include "core/fxcrt/fx_coordinates.h"
+
+// #include "rapidjson/document.h"
+// #include "rapidjson/writer.h"
+// #include "rapidjson/stringbuffer.h"
+
 #include "ContentArea.h"
 
 class DocNode {
@@ -18,7 +23,6 @@ private:
   DocNode* parentPtr;
 
   int depth;
-  std::vector<CFX_FloatRect> textAreas;
 
 public:
   DocNode();
