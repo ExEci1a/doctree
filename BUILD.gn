@@ -1,0 +1,70 @@
+import("//build/config/sanitizers/sanitizers.gni")
+import("../../pdfium.gni")
+
+group("doctree") {
+  testonly = true
+  deps = [ ":2doctree" ]
+}
+
+config("pdfium_samples_config") {
+  cflags = []
+  ldflags = []
+  defines = [
+    "PNG_PREFIX",
+    "PNG_USE_READ_MACROS",
+  ]
+  include_dirs = [ ".." ]
+  if (is_asan) {
+    defines += [ "PDF_ENABLE_ASAN" ]
+  }
+
+  if (enable_callgrind) {
+    defines += [ "ENABLE_CALLGRIND" ]
+  }
+}
+
+source_set("2doctree") {
+  configs += [ "../:pdfium_core_config" ]
+   visibility = [ "../*" ]
+   include_dirs = [
+        "//pso/third_party",
+   ]
+
+  #  if(enable_ocr){
+  #     include_dirs += [
+  #         "//pso/third_party/opencv2",
+  #     ]
+  #     sources += [
+  #       "../2office/OCR/psoOCR.cpp",
+  #       "../2office/OCR/psoOCR.h",
+  #       "../2office/OCR/psoOcrTable.h",
+  #       "../2office/OCR/psoOcrTable.cpp"
+  #     ]
+  #  }
+
+  # testonly = true
+  sources = [
+    "DocNode.cpp",
+    "DocNode.h",
+    "TextItem.cpp",
+    "TextItem.h",
+    "PSO2Doctree.cpp",
+    "PDFToDoctree.cpp",
+    "PDFToDoctree.h",
+    "ContentArea.cpp",
+    "ContentArea.h",
+    # "doctree.cpp"
+  ]
+
+  # Note: One should write programs that depend on ../:pdfium. Whereas this
+  # sample program does not set a good example, and depends on PDFium internals,
+  # as well as test support code, for convenience.
+  deps = [
+    "../../:pdfium_public_headers",
+    "../../fpdfsdk",
+    "../../third_party:pdfium_base",
+    "//build/win:default_exe_manifest",
+    "../../third_party:fx_freetype",
+  ]
+  configs += [ ":pdfium_samples_config" ]
+}
