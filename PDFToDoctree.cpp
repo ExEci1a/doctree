@@ -200,6 +200,11 @@ std::string PDFToDoctree::SavePage(FPDF_PAGE page) {
 
 void PDFToDoctree::CaptureChapterImages() {
   CaptureChapter(rootNodes, this->image_out_path_);
+  for (size_t i = 0; i < total_page_count_; i++) {
+    ByteString filename =
+        filename.Format("%sPage%d.png", image_out_path_.c_str(), i + 1);
+    std::remove(filename.c_str());
+  }
 }
 
 int PDFToDoctree::GetMajorChapterIndex(std::wstring title) {
