@@ -44,7 +44,7 @@ public:
   void AddForSubNodes(DocNode subNode);
   DocNode* GetLastSubNodePtr();
 
-   std::vector<DocNode> GetSubNodes() const { return subNodes; }
+   std::vector<DocNode>& GetSubNodes() { return subNodes; }
 
   void AddForContentAreas(ContentArea contentArea);
 

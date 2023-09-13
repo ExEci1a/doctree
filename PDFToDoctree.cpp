@@ -43,10 +43,10 @@ std::string WstringToUTF8(const std::wstring& wstr) {
 }
 
 #ifdef USEOCR
-void CaptureChapter(std::vector<DocNode> rootNodes, std::string out_path) {
+void CaptureChapter(std::vector<DocNode>& rootNodes, std::string out_path) {
   if (!rootNodes.empty()) {
     for (auto& item : rootNodes) {
-      auto sub_nodes = item.GetSubNodes();
+      auto& sub_nodes = item.GetSubNodes();
       if (!sub_nodes.empty()) {
         CaptureChapter(sub_nodes, out_path);
       }
@@ -220,6 +220,11 @@ std::string PDFToDoctree::SavePage(FPDF_PAGE page) {
 #ifdef USEOCR
 void PDFToDoctree::CaptureChapterImages() {
   CaptureChapter(rootNodes, this->image_out_path_);
+  for (size_t i = 0; i < total_page_count_; i++) {
+    ByteString filename =
+        filename.Format("%sPage%d.png", image_out_path_.c_str(), i + 1);
+    std::remove(filename.c_str());
+  }
 }
 #endif // USEOCR
 
@@ -361,8 +366,6 @@ void PDFToDoctree::AnalyzeByPage(FPDF_DOCUMENT pdf_doc, int pageIndex) {
   IdentiImg(image_path.c_str());
   layout_analysis_results_ = GetDetResult();
   ClearOcrResult();
-
-
 #endif // USE_OCR
 
   // 从页面中提取行文本
