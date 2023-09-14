@@ -34,8 +34,8 @@ class PDFToDoctree {
 
   PSO2DoctreeOpt options;
 
-  PatternType contentPatternType = PatternType(std::wregex(L"^(\\d{1,2})(\\.\\d{1,2})*(?=([\\s]))"), L".");
-  PatternType appendixPatternType = PatternType(std::wregex(L"^附录 [A-Z]"), L".");
+  PatternType mainTextPatternType = PatternType(std::wregex(L"^(\\d{1,2})(\\.\\d{1,2})*(?=([\\s]))"), L".");
+  PatternType appendixPatternType = PatternType(std::wregex(L"^([A-Z])(\\.\\d{1,2})*(?=([\\s]))"), L".");
 
   std::vector<TextItem> textItems;
   DocNode* currentNode = nullptr;
@@ -62,6 +62,11 @@ class PDFToDoctree {
   void SetBrotherNodeForCurrentNode(DocNode newNode);
   void SetNextRootNode(DocNode newNode);
   void SetHighLevelNode(DocNode newNode);
+
+  bool CheckForMainTextChapter(std::wstring content, std::wsmatch& match);
+  bool CheckForAppendixChapter(std::wstring content, std::wsmatch& match);
+  void AnalyzeNodeForMainText(std::wsmatch& match, TextItem item);
+  void AnalyzeNodeForAppendix(std::wsmatch& match, TextItem item);
 
   void RevertDoctree(std::vector<TextItem>& textItems);
   bool YProjectionsIntersect(float top1,

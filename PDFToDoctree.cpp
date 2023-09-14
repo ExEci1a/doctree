@@ -268,12 +268,16 @@ void PDFToDoctree::SetSubNodeForCurrentNode(DocNode newNode) {
 }
 
 void PDFToDoctree::SetBrotherNodeForCurrentNode(DocNode newNode) {
-  // 新建的章节与当前章节同级
-  newNode.SetParentPtr(this->currentNode->GetParentPtr());
-  this->currentNode = this->currentNode->GetParentPtr();
-  this->currentNode->AddForSubNodes(newNode);
+  if (this->currentDepth == 0) {
+    SetNextRootNode(newNode);
+  } else {
+    // 新建的章节与当前章节同级
+    newNode.SetParentPtr(this->currentNode->GetParentPtr());
+    this->currentNode = this->currentNode->GetParentPtr();
+    this->currentNode->AddForSubNodes(newNode);
 
-  this->currentNode = this->currentNode->GetLastSubNodePtr();
+    this->currentNode = this->currentNode->GetLastSubNodePtr();
+  }
 }
 
 void PDFToDoctree::SetNextRootNode(DocNode newNode) {
@@ -300,12 +304,104 @@ void PDFToDoctree::SetHighLevelNode(DocNode newNode) {
   this->currentNode = this->currentNode->GetLastSubNodePtr();
 }
 
+bool PDFToDoctree::CheckForMainTextChapter(std::wstring content, std::wsmatch& match) {
+  return std::regex_search(content, match, mainTextPatternType.pattern);
+}
+
+bool PDFToDoctree::CheckForAppendixChapter(std::wstring content, std::wsmatch& match) {
+  return std::regex_search(content, match, appendixPatternType.pattern);
+}
+
+void PDFToDoctree::AnalyzeNodeForMainText(std::wsmatch& match, TextItem item) {
+  if (this->rootNode == nullptr) {
+    int majorChapter = GetMajorChapterIndex(match[0]);
+    NewRootNode(match, item);
+    this->currentMajorChapterIndex = majorChapter;
+  } else {
+    std::wstring title = match[0];
+    DocNode newNode = DocNode(match[0]);
+
+    int depth = std::count(title.begin(), title.end(), L'.');
+    newNode.SetDepth(depth);
+
+    if (depth > this->currentDepth) {
+      // 新建的章节为当前章节的子章节
+      SetSubNodeForCurrentNode(newNode);
+    } else if (depth == this->currentDepth) {
+      // 新建的章节与当前章节同级
+      SetBrotherNodeForCurrentNode(newNode);
+    } else if (depth == 0) {
+      // 新建的章节为新的根章节
+      if (GetMajorChapterIndex(match[0]) ==
+          (this->currentMajorChapterIndex + 1)) {
+        SetNextRootNode(newNode);
+      } else {
+        // TODO:可能导致一些文字被重复添加，考虑删除以下部分。
+        this->currentNode->AppendText(item.GetContent());
+        this->currentNode->AddForContentAreas(
+            ContentArea(item.GetPageIndex(), item.GetBounds()));
+      }
+    } else {
+      SetHighLevelNode(newNode);
+    }
+    
+    this->currentNode->AppendText(match.suffix());
+    this->currentNode->AddForContentAreas(
+        ContentArea(item.GetPageIndex(), item.GetBounds()));
+    this->currentDepth = depth;
+  }
+}
+
+void PDFToDoctree::AnalyzeNodeForAppendix(std::wsmatch& match, TextItem item) {
+  if (this->rootNode == nullptr) {
+    int majorChapter = GetMajorChapterIndex(match[0]);
+    NewRootNode(match, item);
+    this->currentMajorChapterIndex = majorChapter;
+  } else {
+    std::wstring title = match[0];
+    DocNode newNode = DocNode(match[0]);
+
+    int depth = std::count(title.begin(), title.end(), L'.');
+    newNode.SetDepth(depth);
+
+    if (depth > this->currentDepth) {
+      // 新建的章节为当前章节的子章节
+      SetSubNodeForCurrentNode(newNode);
+    } else if (depth == this->currentDepth) {
+      // 新建的章节与当前章节同级
+      SetBrotherNodeForCurrentNode(newNode);
+    } else if (depth == 0) {
+      // 新建的章节为新的根章节
+      if (GetMajorChapterIndex(match[0]) ==
+          (this->currentMajorChapterIndex + 1)) {
+        SetNextRootNode(newNode);
+      } else {
+        // TODO:可能导致一些文字被重复添加，考虑删除以下部分。
+        this->currentNode->AppendText(item.GetContent());
+        this->currentNode->AddForContentAreas(
+            ContentArea(item.GetPageIndex(), item.GetBounds()));
+      }
+    } else {
+      SetHighLevelNode(newNode);
+    }
+    
+    this->currentNode->AppendText(match.suffix());
+    this->currentNode->AddForContentAreas(
+        ContentArea(item.GetPageIndex(), item.GetBounds()));
+    this->currentDepth = depth;
+  }
+}
+
 void PDFToDoctree::RevertDoctree(std::vector<TextItem>& textItems) {
-  std::wregex pattern(L"^(\\d{1,2})(\\.\\d{1,2})*(?=([\\s]))");
   for (TextItem item : textItems) {
     std::wsmatch match;
     std::wstring content = item.GetContent();
-    if (std::regex_search(content, match, pattern)) {
+    /*if (CheckForMainTextChapter(content, match)) {
+      AnalyzeNodeForMainText(match, item);
+    } else if (CheckForAppendixChapter(content, match)) {
+      AnalyzeNodeForAppendix(match, item);*/
+
+    if (std::regex_search(content, match, mainTextPatternType.pattern)) {
       if (this->rootNode == nullptr) {
         int majorChapter = GetMajorChapterIndex(match[0]);
         NewRootNode(match, item);
