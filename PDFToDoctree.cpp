@@ -51,7 +51,7 @@ void CaptureChapter(std::vector<DocNode>& rootNodes, std::string out_path) {
         CaptureChapter(sub_nodes, out_path);
       }
       if (item.GetDepth() == 2) {
-        auto rects = item.GetRect();
+        auto rects = item.GetRects();
         auto title = WstringToUTF8(item.GetTitle());
         int count = 0;
 
@@ -179,7 +179,6 @@ void PDFToDoctree::GetTextItemsFromPage(FPDF_PAGE page, int pageIndex) {
     }
 
     std::wstring extracted_text(wbuffer, buffer_len);
-
     this->textItems.push_back(TextItem(pageIndex, rect, extracted_text));
 
     delete[] buffer;
@@ -449,13 +448,14 @@ void PDFToDoctree::RevertDoctree(std::vector<TextItem>& textItems) {
   }
 }
 
-void PDFToDoctree::AnalyzeByPage(FPDF_DOCUMENT pdf_doc, int pageIndex) {
+bool PDFToDoctree::AnalyzeByPage(FPDF_DOCUMENT pdf_doc, int pdf_page_index, int current_page_index) {
   // 获取页面
   textItems.clear();
-  FPDF_PAGE page = FPDF_LoadPage(pdf_doc, pageIndex);
+  FPDF_PAGE page = FPDF_LoadPage(pdf_doc, pdf_page_index);
   if (!page) {
     std::cerr << "Failed to load the page." << std::endl;
     FPDF_CloseDocument(pdf_doc);
+    return false;
   }
   auto image_path = SavePage(page);
 #if USEOCR
@@ -465,10 +465,32 @@ void PDFToDoctree::AnalyzeByPage(FPDF_DOCUMENT pdf_doc, int pageIndex) {
 #endif // USE_OCR
 
   // 从页面中提取行文本
-  GetTextItemsFromPage(page, pageIndex);
+  GetTextItemsFromPage(page, current_page_index - 1);
   RevertDoctree(textItems);
 
+  if (!start_page_ && !rootNodes.empty())
+  {
+    auto c_page = CPDFPageFromFPDFPage(page);
+    auto page_height = static_cast<int>(c_page->GetPageHeight());
+    auto check_page_start = [this, &page_height]() -> bool {
+      for (const auto& it : layout_analysis_results_)
+      {
+        if (it.content == L"Title" && rootNodes.front().GetTitle() == L"1")
+        {
+          return YProjectionsIntersect(page_height - (it.zone.top / 2), page_height - (it.zone.bottom / 2), 
+                                       rootNodes.front().GetRects().front().GetRect().Top(), rootNodes.front().GetRects().front().GetRect().Bottom());
+        }
+      }
+    };
+    start_page_ = check_page_start();
+  }
   FPDF_ClosePage(page);
+  if (!start_page_)
+  {
+    remove(image_path.c_str());
+    ClearDoctree();
+  }
+  return start_page_;
 }
 
 DocNode PDFToDoctree::Analyze() {
@@ -487,9 +509,11 @@ DocNode PDFToDoctree::Analyze() {
 
   auto page_count = FPDF_GetPageCount(pdf_doc);
   for (auto i{0}; i < page_count; i++) {
-    current_page_index_ = i + 1;
-    AnalyzeByPage(pdf_doc, i);
-    total_page_count_++;
+    current_page_index_ = total_page_count_ + 1;
+    if (AnalyzeByPage(pdf_doc, i, current_page_index_))
+    {
+      total_page_count_++;
+    }
   }
 
 #if USEOCR

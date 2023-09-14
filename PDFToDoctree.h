@@ -26,6 +26,7 @@
 
 class PDFToDoctree {
  private:
+  bool start_page_ = false;
   std::string filePath;
   std::string password = "";
 
@@ -50,7 +51,7 @@ class PDFToDoctree {
   int current_page_index_ = 0;
   int total_page_count_ = 0;
 
-  void AnalyzeByPage(FPDF_DOCUMENT pdf_doc, int pageIndex);
+  bool AnalyzeByPage(FPDF_DOCUMENT pdf_doc, int pdf_page_index, int current_page_index);
   void GetTextItemsFromPage(FPDF_PAGE page, int pageIndex);
   std::string SavePage(FPDF_PAGE page);
   void CaptureChapterImages();
@@ -67,6 +68,16 @@ class PDFToDoctree {
   bool CheckForAppendixChapter(std::wstring content, std::wsmatch& match);
   void AnalyzeNodeForMainText(std::wsmatch& match, TextItem item);
   void AnalyzeNodeForAppendix(std::wsmatch& match, TextItem item);
+
+  void ClearDoctree() { 
+    currentDepth = 0;
+    currentMajorChapterIndex = -1;
+    rootNodes.clear(); 
+    textItems.clear();
+    currentNode = nullptr;
+    rootNode = nullptr;
+  }
+
 
   void RevertDoctree(std::vector<TextItem>& textItems);
   bool YProjectionsIntersect(float top1,

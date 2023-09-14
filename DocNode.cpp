@@ -68,7 +68,7 @@ void DocNode::AddImagePath(std::string imagePath) {
   this->imagePaths.push_back(imagePath);
 }
 
-std::vector<ContentArea> DocNode::GetRect() const {
+std::vector<ContentArea> DocNode::GetRects() const {
   return contentAreas;
 }
 

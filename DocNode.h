@@ -48,7 +48,7 @@ public:
 
   void AddForContentAreas(ContentArea contentArea);
 
-  std::vector<ContentArea> GetRect() const;
+  std::vector<ContentArea> GetRects() const;
 
   void AppendText(std::wstring text);
   std::string OutputTree();
