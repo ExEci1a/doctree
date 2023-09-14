@@ -242,6 +242,29 @@ int PDFToDoctree::GetMajorChapterIndex(std::wstring title) {
   return majorChapter;
 }
 
+int PDFToDoctree::GetAppendixChapterIndex(std::wstring title) {
+  if (title.length() == 1) {
+    return -1;
+  }
+  // 查找第一个点的位置
+  auto dotPos = title.find(L' ');
+
+  std::wstring firstPart;
+  // 如果找到空格，截取子字符串；否则，使用整个字符串 针对（附录 A）情况
+  if (dotPos != std::wstring::npos) {
+    firstPart = title.substr(dotPos + 1);
+  } else {
+    // 如果找到点，截取子字符串； 针对（A.1.2）情况
+    dotPos = title.find(L'.');
+    firstPart = title.substr(0, dotPos);
+  }
+
+  // 将子字符串转换为 int
+  int appendixChapter = static_cast<int>(firstPart[0]) - static_cast<int>(L'A');
+
+  return appendixChapter;
+}
+
 void PDFToDoctree::NewRootNode(std::wsmatch match, TextItem item) {
   // 新建根节点
   this->rootNodes.push_back(DocNode());
@@ -281,7 +304,7 @@ void PDFToDoctree::SetBrotherNodeForCurrentNode(DocNode newNode) {
 
 void PDFToDoctree::SetNextRootNode(DocNode newNode) {
   // 新建的章节为新的根章节
-  this->currentMajorChapterIndex++;
+  
 
   newNode.SetParentPtr(nullptr);
   this->rootNodes.push_back(newNode);
@@ -303,12 +326,20 @@ void PDFToDoctree::SetHighLevelNode(DocNode newNode) {
   this->currentNode = this->currentNode->GetLastSubNodePtr();
 }
 
-bool PDFToDoctree::CheckForMainTextChapter(std::wstring content, std::wsmatch& match) {
-  return std::regex_search(content, match, mainTextPatternType.pattern);
+bool PDFToDoctree::CheckForMainTextChapter(const std::wstring& content,
+                                           std::wsmatch& match) {
+  return std::regex_search(content, match, localPatternType.mainTextPattern);
 }
 
-bool PDFToDoctree::CheckForAppendixChapter(std::wstring content, std::wsmatch& match) {
-  return std::regex_search(content, match, appendixPatternType.pattern);
+bool PDFToDoctree::CheckForAppendixChapter(const std::wstring& content,
+                                           std::wsmatch& match) {
+  if (std::regex_search(content, match, localPatternType.appendixPattern)) {
+    return true;
+  } else if (std::regex_search(content, match, localPatternType.appendixMajorPattern)) {
+    return true;
+  }
+
+  return false;
 }
 
 void PDFToDoctree::AnalyzeNodeForMainText(std::wsmatch& match, TextItem item) {
@@ -320,26 +351,27 @@ void PDFToDoctree::AnalyzeNodeForMainText(std::wsmatch& match, TextItem item) {
     std::wstring title = match[0];
     DocNode newNode = DocNode(match[0]);
 
-    int depth = std::count(title.begin(), title.end(), L'.');
+    int depth = std::count(title.begin(), title.end(), this->localPatternType.mainTextSplit);
     newNode.SetDepth(depth);
 
     if (depth > this->currentDepth) {
       // 新建的章节为当前章节的子章节
       SetSubNodeForCurrentNode(newNode);
-    } else if (depth == this->currentDepth) {
-      // 新建的章节与当前章节同级
-      SetBrotherNodeForCurrentNode(newNode);
     } else if (depth == 0) {
       // 新建的章节为新的根章节
       if (GetMajorChapterIndex(match[0]) ==
           (this->currentMajorChapterIndex + 1)) {
         SetNextRootNode(newNode);
+        this->currentMajorChapterIndex++;
       } else {
         // TODO:可能导致一些文字被重复添加，考虑删除以下部分。
         this->currentNode->AppendText(item.GetContent());
         this->currentNode->AddForContentAreas(
             ContentArea(item.GetPageIndex(), item.GetBounds()));
       }
+    } else if (depth == this->currentDepth) {
+      // 新建的章节与当前章节同级
+      SetBrotherNodeForCurrentNode(newNode);
     } else {
       SetHighLevelNode(newNode);
     }
@@ -352,34 +384,36 @@ void PDFToDoctree::AnalyzeNodeForMainText(std::wsmatch& match, TextItem item) {
 }
 
 void PDFToDoctree::AnalyzeNodeForAppendix(std::wsmatch& match, TextItem item) {
+  this->is_in_appendix = true;
   if (this->rootNode == nullptr) {
-    int majorChapter = GetMajorChapterIndex(match[0]);
+    int appendixIndex = GetAppendixChapterIndex(match[0]);
     NewRootNode(match, item);
-    this->currentMajorChapterIndex = majorChapter;
+    this->currentAppendixChapterIndex = appendixIndex;
   } else {
     std::wstring title = match[0];
     DocNode newNode = DocNode(match[0]);
 
-    int depth = std::count(title.begin(), title.end(), L'.');
+    int depth = std::count(title.begin(), title.end(), this->localPatternType.appendixSplit);
     newNode.SetDepth(depth);
 
     if (depth > this->currentDepth) {
       // 新建的章节为当前章节的子章节
       SetSubNodeForCurrentNode(newNode);
-    } else if (depth == this->currentDepth) {
-      // 新建的章节与当前章节同级
-      SetBrotherNodeForCurrentNode(newNode);
     } else if (depth == 0) {
       // 新建的章节为新的根章节
-      if (GetMajorChapterIndex(match[0]) ==
-          (this->currentMajorChapterIndex + 1)) {
+      int tempAppendixIndex = GetAppendixChapterIndex(match[0]);
+      if ( tempAppendixIndex > this->currentAppendixChapterIndex) {
         SetNextRootNode(newNode);
+        this->currentAppendixChapterIndex = tempAppendixIndex;
       } else {
         // TODO:可能导致一些文字被重复添加，考虑删除以下部分。
         this->currentNode->AppendText(item.GetContent());
         this->currentNode->AddForContentAreas(
             ContentArea(item.GetPageIndex(), item.GetBounds()));
       }
+    } else if (depth == this->currentDepth) {
+      // 新建的章节与当前章节同级
+      SetBrotherNodeForCurrentNode(newNode);
     } else {
       SetHighLevelNode(newNode);
     }
@@ -392,51 +426,35 @@ void PDFToDoctree::AnalyzeNodeForAppendix(std::wsmatch& match, TextItem item) {
 }
 
 void PDFToDoctree::RevertDoctree(std::vector<TextItem>& textItems) {
+  int index = 0;
   for (TextItem item : textItems) {
     std::wsmatch match;
     std::wstring content = item.GetContent();
-    /*if (CheckForMainTextChapter(content, match)) {
-      AnalyzeNodeForMainText(match, item);
-    } else if (CheckForAppendixChapter(content, match)) {
-      AnalyzeNodeForAppendix(match, item);*/
-
-    if (std::regex_search(content, match, mainTextPatternType.pattern)) {
-      if (this->rootNode == nullptr) {
-        int majorChapter = GetMajorChapterIndex(match[0]);
-        NewRootNode(match, item);
-        this->currentMajorChapterIndex = majorChapter;
-      } else {
-        std::wstring title = match[0];
-        DocNode newNode = DocNode(match[0]);
-
-        int depth = std::count(title.begin(), title.end(), L'.');
-        newNode.SetDepth(depth);
-
-        if (depth > this->currentDepth) {
-          // 新建的章节为当前章节的子章节
-          SetSubNodeForCurrentNode(newNode);
-        } else if (depth == this->currentDepth) {
-          // 新建的章节与当前章节同级
-          SetBrotherNodeForCurrentNode(newNode);
-        } else if (depth == 0) {
-          // 新建的章节为新的根章节
-          if (GetMajorChapterIndex(match[0]) ==
-              (this->currentMajorChapterIndex + 1)) {
-            SetNextRootNode(newNode);
-          } else {
-            this->currentNode->AppendText(item.GetContent());
-            this->currentNode->AddForContentAreas(
-                ContentArea(item.GetPageIndex(), item.GetBounds()));
-          }
-        } else {
-          SetHighLevelNode(newNode);
-        }
-
-        this->currentNode->AppendText(match.suffix());
+    if (CheckForMainTextChapter(content, match)) {
+      if (is_in_appendix) {
+        if (this->currentNode == nullptr)
+          continue;
+      
+        this->currentNode->AppendText(item.GetContent());
         this->currentNode->AddForContentAreas(
             ContentArea(item.GetPageIndex(), item.GetBounds()));
-        this->currentDepth = depth;
+        
+        continue;
       }
+      
+      AnalyzeNodeForMainText(match, item);
+    } else if (std::regex_search(content, match, localPatternType.appendixMajorPattern)) {
+      if (std::regex_search(content, match, localPatternType.appendixMajorPattern) && index != 0) {
+        this->currentNode->AppendText(item.GetContent());
+        this->currentNode->AddForContentAreas(
+            ContentArea(item.GetPageIndex(), item.GetBounds()));
+        
+        continue;
+      }
+      AnalyzeNodeForAppendix(match, item);
+    } else if (std::regex_search(content, match, localPatternType.appendixPattern)) {
+      // 如果开头就有附录就无了
+      AnalyzeNodeForAppendix(match, item);
     } else {
       if (this->currentNode == nullptr)
         continue;
@@ -445,6 +463,7 @@ void PDFToDoctree::RevertDoctree(std::vector<TextItem>& textItems) {
       this->currentNode->AddForContentAreas(
           ContentArea(item.GetPageIndex(), item.GetBounds()));
     }
+    index++;
   }
 }
 
@@ -468,6 +487,7 @@ bool PDFToDoctree::AnalyzeByPage(FPDF_DOCUMENT pdf_doc, int pdf_page_index, int 
   GetTextItemsFromPage(page, current_page_index - 1);
   RevertDoctree(textItems);
 
+#if USEOCR
   if (!start_page_ && !rootNodes.empty())
   {
     auto c_page = CPDFPageFromFPDFPage(page);
@@ -484,13 +504,18 @@ bool PDFToDoctree::AnalyzeByPage(FPDF_DOCUMENT pdf_doc, int pdf_page_index, int 
     };
     start_page_ = check_page_start();
   }
+#endif // USE_OCR
   FPDF_ClosePage(page);
+#if USEOCR
   if (!start_page_)
   {
     remove(image_path.c_str());
     ClearDoctree();
   }
   return start_page_;
+#else
+ return true;
+#endif // USE_OCR
 }
 
 DocNode PDFToDoctree::Analyze() {

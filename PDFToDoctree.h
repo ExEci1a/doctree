@@ -35,8 +35,8 @@ class PDFToDoctree {
 
   PSO2DoctreeOpt options;
 
-  PatternType mainTextPatternType = PatternType(std::wregex(L"^(\\d{1,2})(\\.\\d{1,2})*(?=([\\s]))"), L".");
-  PatternType appendixPatternType = PatternType(std::wregex(L"^([A-Z])(\\.\\d{1,2})*(?=([\\s]))"), L".");
+  PatternType localPatternType = PatternType(std::wregex(L"^(\\d{1,2})(\\.\\d{1,2})*(?=([\\s]))"), L'.', std::wregex(L"^(\\d{1,2})(\\.\\d{1,2})*(?=([\\s]))"),
+                                             std::wregex(L"(^[A-Z]\\.\\d{1,2})(\\.\\d{1,2})*(?=([\\s]))"), L'.', std::wregex(L"^附录 ([A-Z])"));
 
   std::vector<TextItem> textItems;
   DocNode* currentNode = nullptr;
@@ -48,15 +48,19 @@ class PDFToDoctree {
   
   int currentDepth = 0;
   int currentMajorChapterIndex = -1;
+  int currentAppendixChapterIndex = -1;
   int current_page_index_ = 0;
   int total_page_count_ = 0;
 
   bool AnalyzeByPage(FPDF_DOCUMENT pdf_doc, int pdf_page_index, int current_page_index);
+  bool is_in_appendix = false;
+
   void GetTextItemsFromPage(FPDF_PAGE page, int pageIndex);
   std::string SavePage(FPDF_PAGE page);
   void CaptureChapterImages();
 
   int GetMajorChapterIndex(std::wstring title);
+  int GetAppendixChapterIndex(std::wstring title);
 
   void NewRootNode(std::wsmatch match, TextItem item);
   void SetSubNodeForCurrentNode(DocNode newNode);
@@ -64,8 +68,10 @@ class PDFToDoctree {
   void SetNextRootNode(DocNode newNode);
   void SetHighLevelNode(DocNode newNode);
 
-  bool CheckForMainTextChapter(std::wstring content, std::wsmatch& match);
-  bool CheckForAppendixChapter(std::wstring content, std::wsmatch& match);
+  bool CheckForMainTextChapter(const std::wstring& content,
+                               std::wsmatch& match);
+  bool CheckForAppendixChapter(const std::wstring& content,
+                               std::wsmatch& match);
   void AnalyzeNodeForMainText(std::wsmatch& match, TextItem item);
   void AnalyzeNodeForAppendix(std::wsmatch& match, TextItem item);
 

@@ -6,10 +6,28 @@
 
 class PatternType {
 public:
-  std::wregex pattern;
-  std::wstring split;
+  std::wregex mainTextPattern;
+  wchar_t mainTextSplit;
+  std::wregex mainTextMajorPattern;
 
-  PatternType(std::wregex pattern, std::wstring split) : pattern(pattern), split(split) {};
+  std::wregex appendixPattern;
+  wchar_t appendixSplit;
+  std::wregex appendixMajorPattern;
+
+  PatternType(std::wregex mainTextPattern,
+              wchar_t mainTextSplit,
+              std::wregex mainTextMajorPattern,
+              std::wregex appendixPattern,
+              wchar_t appendixSplit,
+              std::wregex appendixMajorPattern) {
+    this->mainTextPattern = mainTextPattern;
+    this->mainTextSplit = mainTextSplit;
+    this->mainTextMajorPattern = mainTextMajorPattern;
+
+    this->appendixPattern = appendixPattern;
+    this->appendixSplit = appendixSplit;
+    this->appendixMajorPattern = appendixMajorPattern;
+  }
 };
 
 #endif // PATTERNTYPE
