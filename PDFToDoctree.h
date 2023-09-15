@@ -78,6 +78,7 @@ class PDFToDoctree {
   void AnalyzeNodeForAppendix(std::wsmatch& match, TextItem item);
 
   void ClearDoctree() { 
+    is_in_appendix = false;
     currentDepth = 0;
     currentMajorChapterIndex = -1;
     rootNodes.clear(); 

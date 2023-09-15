@@ -52,6 +52,7 @@ void CaptureChapter(std::vector<DocNode>& rootNodes, std::string out_path) {
       }
       if (item.GetDepth() == 2) {
         auto rects = item.GetRects();
+
         auto title = WstringToUTF8(item.GetTitle());
         int count = 0;
 
@@ -59,16 +60,20 @@ void CaptureChapter(std::vector<DocNode>& rootNodes, std::string out_path) {
           auto page_index = rect.GetPageIndex();
           ByteString filename =
               filename.Format("%sPage%d.png", out_path.c_str(), page_index + 1);
-
           auto src_image = cv::imread(filename.c_str());
           auto real_rect = rect.GetRect();
           if (!src_image.empty()) {
+            if (real_rect.Height() == 0 || real_rect.Width() == 0)
+            {
+              continue;
+            }
             auto chapter_image =
                 src_image(cv::Rect(0, src_image.rows - (real_rect.top * 2),
                                    src_image.cols, real_rect.Height() * 2));
             auto suffix = count > 0 ? "_" + std::to_string(count) : "";
             auto item_image_path = out_path + title + suffix + ".png";
             cv::imwrite(item_image_path, chapter_image);
+
             item.AddImagePath(item_image_path);
             count++;
           }
@@ -494,6 +499,7 @@ bool PDFToDoctree::AnalyzeByPage(FPDF_DOCUMENT pdf_doc, int pdf_page_index, int 
     FPDF_CloseDocument(pdf_doc);
     return false;
   }
+
   auto image_path = SavePage(page);
 #if USEOCR
   IdentiImg(image_path.c_str());
@@ -524,16 +530,17 @@ bool PDFToDoctree::AnalyzeByPage(FPDF_DOCUMENT pdf_doc, int pdf_page_index, int 
   }
 #endif // USE_OCR
   FPDF_ClosePage(page);
+
 #if USEOCR
   if (!start_page_)
   {
     remove(image_path.c_str());
     ClearDoctree();
   }
+
   return start_page_;
-#else
+#endif
  return true;
-#endif // USE_OCR
 }
 
 DocNode PDFToDoctree::Analyze() {
