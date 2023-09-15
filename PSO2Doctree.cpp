@@ -12,6 +12,10 @@ PSO2Doctree::~PSO2Doctree() {
     // do nothing
 }
 
+int PSO2Doctree::GetPageCount() {
+    return this->analyzer->GetDocPageCount();
+}
+
 void PSO2Doctree::StartAnalyze() {
     this->analyzer->Analyze();
 }

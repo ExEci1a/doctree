@@ -26,6 +26,8 @@
 
 class PDFToDoctree {
  private:
+  FPDF_DOCUMENT pdf_doc;
+
   bool start_page_ = false;
   std::string filePath;
   std::string password = "";
@@ -93,13 +95,15 @@ class PDFToDoctree {
 
  public:
   // input path, output path, password, options, error code;
-  PDFToDoctree() = default;
+  PDFToDoctree();
   PDFToDoctree(std::string filePath,
                std::string outPath,
                std::string password,
                PSO2DoctreeOpt options);
   ~PDFToDoctree();
   DocNode Analyze();
+
+  int GetDocPageCount();
 
   void OutputDoctreeJson();
 #ifdef USEOCR

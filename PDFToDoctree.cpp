@@ -80,6 +80,15 @@ void CaptureChapter(std::vector<DocNode>& rootNodes, std::string out_path) {
 #endif // USEOCR
 }
 
+PDFToDoctree::PDFToDoctree() {
+  FPDF_LIBRARY_CONFIG config;
+  config.version = 2;
+  config.m_pUserFontPaths = NULL;
+  config.m_pIsolate = NULL;
+  config.m_v8EmbedderSlot = 0;
+  FPDF_InitLibraryWithConfig(&config);
+}
+
 PDFToDoctree::PDFToDoctree(std::string filePath,
                            std::string outPath,
                            std::string password,
@@ -92,9 +101,17 @@ PDFToDoctree::PDFToDoctree(std::string filePath,
   image_out_path_ = this->outPath + "imgs\\";
   this->password = password;
   this->options = options;
+
+  PDFToDoctree();
+
+  // 加载PDF文件
+  pdf_doc = FPDF_LoadDocument(filePath.c_str(), password.c_str());
 }
 
-PDFToDoctree::~PDFToDoctree() {}
+PDFToDoctree::~PDFToDoctree() {
+  FPDF_CloseDocument(pdf_doc);
+  FPDF_DestroyLibrary();
+}
 
 bool PDFToDoctree::YProjectionsIntersect(float top1,
                                          float bottom1,
@@ -107,6 +124,7 @@ void PDFToDoctree::GetTextItemsFromPage(FPDF_PAGE page, int pageIndex) {
   std::vector<CFX_FloatRect> boundsVector;
   std::set<int> bottomSet;
 
+  int test = FPDFPage_CountObjects(page);
   // 遍历页面内容
   for (int i = 0; i < FPDFPage_CountObjects(page); i++) {
     FPDF_PAGEOBJECT page_object = FPDFPage_GetObject(page, i);
@@ -519,15 +537,6 @@ bool PDFToDoctree::AnalyzeByPage(FPDF_DOCUMENT pdf_doc, int pdf_page_index, int 
 }
 
 DocNode PDFToDoctree::Analyze() {
-  FPDF_LIBRARY_CONFIG config;
-  config.version = 2;
-  config.m_pUserFontPaths = NULL;
-  config.m_pIsolate = NULL;
-  config.m_v8EmbedderSlot = 0;
-  FPDF_InitLibraryWithConfig(&config);
-
-  // 加载PDF文件
-  FPDF_DOCUMENT pdf_doc = FPDF_LoadDocument(filePath.c_str(), password.c_str());
   if (!pdf_doc) {
     std::cerr << "Failed to load the document." << std::endl;
   }
@@ -545,10 +554,11 @@ DocNode PDFToDoctree::Analyze() {
   CaptureChapterImages();
 #endif // USEOCR
 
-  FPDF_CloseDocument(pdf_doc);
-  FPDF_DestroyLibrary();
-
   return DocNode();
+}
+
+int PDFToDoctree::GetDocPageCount() {
+  return FPDF_GetPageCount(pdf_doc);
 }
 
 void PDFToDoctree::OutputDoctreeJson() {
