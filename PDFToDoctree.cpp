@@ -283,7 +283,8 @@ void PDFToDoctree::NewRootNode(std::wsmatch match, TextItem item) {
   this->rootNodes.push_back(DocNode());
 
   this->currentNode = &this->rootNodes.back();
-
+  
+  this->currentNode->SetParentPtr(nullptr);
   this->currentNode->SetTitle(match[0]);
   this->currentNode->SetText(match.suffix());
   this->currentNode->SetDepth(0);
@@ -347,6 +348,10 @@ void PDFToDoctree::SetHighLevelNode(DocNode newNode) {
     this->currentNode = this->currentNode->GetParentPtr();
     this->currentDepth--;
   }
+  if (this->currentNode->GetParentPtr() == nullptr) {
+    return;
+  }
+
   newNode.SetParentPtr(this->currentNode->GetParentPtr());
   this->currentNode = this->currentNode->GetParentPtr();
   this->currentNode->AddForSubNodes(newNode);

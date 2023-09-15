@@ -77,6 +77,9 @@ void DocNode::AddForSubNodes(DocNode subNode) {
 }
 
 DocNode* DocNode::GetLastSubNodePtr() {
+  if (this->subNodes.empty()) {
+    return nullptr;
+  }
   return &this->subNodes.back();
 }
 
