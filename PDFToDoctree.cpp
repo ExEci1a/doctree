@@ -317,6 +317,9 @@ void PDFToDoctree::SetBrotherNodeForCurrentNode(DocNode newNode) {
     SetNextRootNode(newNode);
   } else {
     // 新建的章节与当前章节同级
+    if (this->currentNode->GetParentPtr() == nullptr) {
+      return;
+    }
     newNode.SetParentPtr(this->currentNode->GetParentPtr());
     this->currentNode = this->currentNode->GetParentPtr();
     this->currentNode->AddForSubNodes(newNode);
@@ -327,8 +330,6 @@ void PDFToDoctree::SetBrotherNodeForCurrentNode(DocNode newNode) {
 
 void PDFToDoctree::SetNextRootNode(DocNode newNode) {
   // 新建的章节为新的根章节
-  
-
   newNode.SetParentPtr(nullptr);
   this->rootNodes.push_back(newNode);
 
@@ -338,7 +339,7 @@ void PDFToDoctree::SetNextRootNode(DocNode newNode) {
 
 void PDFToDoctree::SetHighLevelNode(DocNode newNode) {
   // 新建的章节为当前章节的兄弟章节，即为当前章节的父章节的子章节
-  while (newNode.GetDepth() < this->currentDepth) {
+  while (newNode.GetDepth() < this->currentDepth && this->currentNode->GetParentPtr() != nullptr) {
     this->currentNode = this->currentNode->GetParentPtr();
     this->currentDepth--;
   }
