@@ -85,15 +85,6 @@ void CaptureChapter(std::vector<DocNode>& rootNodes, std::string out_path) {
 #endif // USEOCR
 }
 
-PDFToDoctree::PDFToDoctree() {
-  FPDF_LIBRARY_CONFIG config;
-  config.version = 2;
-  config.m_pUserFontPaths = NULL;
-  config.m_pIsolate = NULL;
-  config.m_v8EmbedderSlot = 0;
-  FPDF_InitLibraryWithConfig(&config);
-}
-
 PDFToDoctree::PDFToDoctree(std::string filePath,
                            std::string outPath,
                            std::string password,
@@ -107,15 +98,14 @@ PDFToDoctree::PDFToDoctree(std::string filePath,
   this->password = password;
   this->options = options;
 
-  PDFToDoctree();
-
-  // 加载PDF文件
   pdf_doc = FPDF_LoadDocument(filePath.c_str(), password.c_str());
 }
 
 PDFToDoctree::~PDFToDoctree() {
-  FPDF_CloseDocument(pdf_doc);
-  FPDF_DestroyLibrary();
+  if (!pdf_doc)
+  {
+    FPDF_CloseDocument(pdf_doc);
+  }
 }
 
 bool PDFToDoctree::YProjectionsIntersect(float top1,

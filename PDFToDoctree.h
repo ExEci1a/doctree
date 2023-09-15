@@ -96,7 +96,7 @@ class PDFToDoctree {
 
  public:
   // input path, output path, password, options, error code;
-  PDFToDoctree();
+  PDFToDoctree() = default;
   PDFToDoctree(std::string filePath,
                std::string outPath,
                std::string password,
